@@ -31,7 +31,6 @@ const TYPE_LABELS = {
 }
 
 const ICONS = {
-  upload: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>',
   plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
   sidebar: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>',
   search: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
@@ -75,9 +74,10 @@ function mountShell() {
         </header>
 
         <main class="content" id="drop-zone">
+          <input type="file" id="file-input" multiple hidden />
           <div class="empty-state" id="empty-state">
             <h2 class="greeting">Ready when you are.</h2>
-            <p class="text-muted">Drop files anywhere, paste with Ctrl+V, or use the bar below.</p>
+            <p class="text-muted">Drop files anywhere or paste with Ctrl+V.</p>
             <div class="quick-actions">
               <button type="button" class="quick-chip" data-action="browse">${ICONS.image} Add images</button>
               <button type="button" class="quick-chip" data-action="browse">${ICONS.file} Upload files</button>
@@ -86,18 +86,6 @@ function mountShell() {
           </div>
           <div id="preview-grid" class="preview-grid"></div>
         </main>
-
-        <div class="composer-wrap">
-          <div class="composer">
-            <input type="file" id="file-input" multiple hidden />
-            <button type="button" class="composer-attach" id="browse-btn" aria-label="Attach files">${ICONS.plus}</button>
-            <div class="composer-field">
-              <span class="composer-placeholder">Drop or paste anything…</span>
-            </div>
-            <button type="button" class="composer-send" id="composer-browse" aria-label="Browse">${ICONS.upload}</button>
-          </div>
-          <p class="composer-hint text-muted text-xs">DropNDrag saves your session in local storage</p>
-        </div>
       </div>
     </div>
 
@@ -544,8 +532,6 @@ function bindEvents() {
   const dropZone = $('drop-zone')
   const fileInput = $('file-input')
 
-  $('browse-btn').addEventListener('click', () => fileInput.click())
-  $('composer-browse').addEventListener('click', () => fileInput.click())
   fileInput.addEventListener('change', (e) => {
     if (e.target.files?.length) handleFiles(e.target.files)
     e.target.value = ''
