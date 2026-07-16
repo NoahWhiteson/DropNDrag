@@ -1,4 +1,5 @@
 import './style.css'
+import 'highlight.js/styles/github-dark.min.css'
 import {
   loadState,
   saveState,
@@ -8,6 +9,10 @@ import {
   deserializeItem,
   createSession,
 } from './storage.js'
+import { detectFileKind, isTextKind, typeLabel } from './files.js'
+import { renderPreviewBody } from './preview.js'
+import { exportSessionZip } from './export.js'
+import { escapeHtml } from './utils.js'
 
 const app = document.querySelector('#app')
 const toastRoot = document.getElementById('toast-root')
@@ -20,15 +25,7 @@ let searchQuery = ''
 let viewMode = 'grid'
 let sidebarOpen = true
 let saveTimer = null
-
-const TYPE_LABELS = {
-  image: 'Image',
-  video: 'Video',
-  audio: 'Audio',
-  pdf: 'PDF',
-  text: 'Text',
-  file: 'File',
-}
+let renamingSessionId = null
 
 const ICONS = {
   plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>',
@@ -40,6 +37,8 @@ const ICONS = {
   image: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>',
   text: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>',
   file: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>',
+  download: '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  edit: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>',
 }
 
 function mountShell() {
@@ -62,12 +61,13 @@ function mountShell() {
       <div class="main">
         <header class="topbar">
           <button type="button" class="icon-btn" id="sidebar-toggle" aria-label="Toggle sidebar">${ICONS.sidebar}</button>
-          <span class="topbar-title" id="session-title">DropNDrag</span>
+          <button type="button" class="topbar-title" id="session-title" title="Click to rename">${ICONS.edit}<span id="session-title-text">DropNDrag</span></button>
           <div class="topbar-actions">
             <div class="search-wrap">
               ${ICONS.search}
               <input type="search" id="search-input" class="search-input" placeholder="Search items…" />
             </div>
+            <button type="button" class="btn btn-outline btn-sm" id="export-btn" hidden>${ICONS.download} Export ZIP</button>
             <button type="button" class="icon-btn" id="view-toggle" aria-label="Toggle view">${ICONS.grid}</button>
             <button type="button" class="icon-btn" id="clear-btn" hidden aria-label="Clear session">${ICONS.close}</button>
           </div>
@@ -135,19 +135,6 @@ function formatDate(date) {
   return d.toLocaleDateString([], { month: 'short', day: 'numeric' })
 }
 
-function fileExt(name) {
-  const dot = name.lastIndexOf('.')
-  return dot === -1 ? '' : name.slice(dot + 1).toUpperCase()
-}
-
-function escapeHtml(str) {
-  return String(str)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-}
-
 function toast(message) {
   const el = document.createElement('div')
   el.className = 'toast'
@@ -203,6 +190,43 @@ function syncSessionItems() {
   scheduleSave()
 }
 
+function renameSession(id, newTitle) {
+  const title = newTitle.trim()
+  if (!title) return
+  const session = sessions.find((s) => s.id === id)
+  if (!session) return
+  session.title = title
+  renamingSessionId = null
+  render()
+  scheduleSave()
+  toast('Session renamed')
+}
+
+function startRenameSession(id) {
+  renamingSessionId = id
+  renderSessions()
+  requestAnimationFrame(() => {
+    const input = document.querySelector(`[data-rename-input="${id}"]`)
+    if (!input) return
+    input.focus()
+    input.select()
+    const commit = () => renameSession(id, input.value)
+    input.addEventListener('blur', commit, { once: true })
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault()
+        input.blur()
+      }
+      if (e.key === 'Escape') {
+        renamingSessionId = null
+        renderSessions()
+      }
+      e.stopPropagation()
+    })
+    input.addEventListener('click', (e) => e.stopPropagation())
+  })
+}
+
 function removeItem(id) {
   const index = items.findIndex((item) => item.id === id)
   if (index === -1) return
@@ -244,6 +268,7 @@ function switchSession(id) {
     items = (fresh?.items || []).map(deserializeItem)
     searchQuery = ''
     $('search-input').value = ''
+    renamingSessionId = null
     render()
   })
 }
@@ -257,6 +282,7 @@ function newSession() {
     items = []
     searchQuery = ''
     $('search-input').value = ''
+    renamingSessionId = null
     render()
     toast('New session started')
   })
@@ -283,6 +309,7 @@ function deleteSession(id, event) {
   } else {
     sessions.splice(idx, 1)
   }
+  renamingSessionId = null
   render()
   scheduleSave()
 }
@@ -298,12 +325,35 @@ function filteredItems() {
   )
 }
 
+function readTextFile(file, meta, extra = {}) {
+  const reader = new FileReader()
+  reader.onload = () => {
+    addItem({
+      name: file.name,
+      size: file.size,
+      mime: file.type || 'text/plain',
+      content: String(reader.result),
+      file,
+      ...meta,
+      ...extra,
+    })
+  }
+  reader.readAsText(file)
+}
+
 function handleFiles(fileList) {
   Array.from(fileList).forEach((file) => {
-    if (file.type.startsWith('image/')) {
+    const kind = detectFileKind(file)
+
+    if (isTextKind(kind.type)) {
+      readTextFile(file, { type: kind.type }, { language: kind.language, delimiter: kind.delimiter })
+      return
+    }
+
+    if (['image', 'svg', 'video', 'audio', 'pdf'].includes(kind.type)) {
       addItem({
-        type: 'image',
-        name: file.name || 'Pasted image',
+        type: kind.type,
+        name: file.name || 'Pasted file',
         size: file.size,
         mime: file.type,
         url: URL.createObjectURL(file),
@@ -311,57 +361,7 @@ function handleFiles(fileList) {
       })
       return
     }
-    if (file.type.startsWith('video/')) {
-      addItem({
-        type: 'video',
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-        url: URL.createObjectURL(file),
-        file,
-      })
-      return
-    }
-    if (file.type.startsWith('audio/')) {
-      addItem({
-        type: 'audio',
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-        url: URL.createObjectURL(file),
-        file,
-      })
-      return
-    }
-    if (file.type === 'application/pdf') {
-      addItem({
-        type: 'pdf',
-        name: file.name,
-        size: file.size,
-        mime: file.type,
-        url: URL.createObjectURL(file),
-        file,
-      })
-      return
-    }
-    if (
-      file.type.startsWith('text/') ||
-      file.name.match(/\.(txt|md|json|js|ts|css|html|xml|csv|log|yml|yaml|svg)$/i)
-    ) {
-      const reader = new FileReader()
-      reader.onload = () => {
-        addItem({
-          type: 'text',
-          name: file.name,
-          size: file.size,
-          mime: file.type || 'text/plain',
-          content: String(reader.result),
-          file,
-        })
-      }
-      reader.readAsText(file)
-      return
-    }
+
     addItem({
       type: 'file',
       name: file.name || 'Unnamed file',
@@ -446,43 +446,29 @@ function cardActions(item) {
   }
 
   const actions = []
-  if (item.type === 'text') {
+  if (isTextKind(item.type) || item.type === 'text') {
     actions.push(`<button type="button" class="btn btn-ghost btn-sm" data-copy-text="${item.id}">Copy</button>`)
   }
-  if (item.type === 'image' && item.url) {
+  if ((item.type === 'image' || item.type === 'svg') && item.url) {
     actions.push(`<button type="button" class="btn btn-ghost btn-sm" data-copy-img="${item.id}">Copy</button>`)
     actions.push(`<button type="button" class="btn btn-ghost btn-sm" data-expand="${item.id}">Expand</button>`)
   }
   if (item.url) {
     actions.push(`<a href="${item.url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Open</a>`)
     actions.push(`<a href="${item.url}" download="${escapeHtml(item.name)}" class="btn btn-ghost btn-sm">Save</a>`)
+  } else if (item.content != null) {
+    actions.push(`<button type="button" class="btn btn-ghost btn-sm" data-save-text="${item.id}">Save</button>`)
   }
   if (!actions.length) return ''
   return `<div class="card-footer">${actions.join('')}</div>`
 }
 
 function renderCard(item) {
-  const label = TYPE_LABELS[item.type] || 'File'
-  let body = ''
-
-  if (item.tooLarge) {
-    body = `<div class="file-placeholder"><span class="file-ext">!</span><span class="text-muted text-xs">Not saved — over 2MB</span></div>`
-  } else if (item.type === 'image' && item.url) {
-    body = `<img src="${item.url}" alt="${escapeHtml(item.name)}" class="preview-image" data-expand="${item.id}" />`
-  } else if (item.type === 'video' && item.url) {
-    body = `<video src="${item.url}" controls class="preview-media"></video>`
-  } else if (item.type === 'audio' && item.url) {
-    body = `<audio src="${item.url}" controls class="preview-audio"></audio>`
-  } else if (item.type === 'pdf' && item.url) {
-    body = `<iframe src="${item.url}" class="preview-pdf" title="${escapeHtml(item.name)}"></iframe>`
-  } else if (item.type === 'text') {
-    body = `<pre class="preview-text">${escapeHtml(item.content)}</pre>`
-  } else {
-    body = `<div class="file-placeholder"><span class="file-ext">${escapeHtml(fileExt(item.name) || 'FILE')}</span><span class="text-muted text-xs">${escapeHtml(item.mime)}</span></div>`
-  }
+  const label = typeLabel(item.type)
+  const body = renderPreviewBody(item)
 
   return `
-    <article class="card ${viewMode === 'list' ? 'card-list' : ''}" data-id="${item.id}">
+    <article class="card ${viewMode === 'list' ? 'card-list' : ''} card-${item.type}" data-id="${item.id}">
       <div class="card-header">
         <div class="card-header-left">
           <span class="badge">${label}</span>
@@ -504,18 +490,29 @@ function renderSessions() {
   $('session-list').innerHTML = sessions
     .map((s) => {
       const count = s.id === currentSessionId ? items.length : (s.items || []).length
+      const isRenaming = renamingSessionId === s.id
+
+      if (isRenaming) {
+        return `
+          <div class="session-item active renaming">
+            <input type="text" class="session-rename-input" data-rename-input="${s.id}" value="${escapeHtml(s.title)}" maxlength="64" />
+          </div>
+        `
+      }
+
       return `
-    <button type="button" class="session-item ${s.id === currentSessionId ? 'active' : ''}" data-session="${s.id}">
-      <span class="session-item-title">${escapeHtml(s.title)}</span>
-      <span class="session-item-meta text-muted text-xs">${formatDate(s.createdAt)} · ${count} items</span>
-      <span class="session-delete" data-delete-session="${s.id}" aria-label="Delete session">${ICONS.close}</span>
-    </button>
-  `
+        <button type="button" class="session-item ${s.id === currentSessionId ? 'active' : ''}" data-session="${s.id}">
+          <span class="session-item-title">${escapeHtml(s.title)}</span>
+          <span class="session-item-meta text-muted text-xs">${formatDate(s.createdAt)} · ${count} items</span>
+          <span class="session-rename" data-rename-session="${s.id}" aria-label="Rename session">${ICONS.edit}</span>
+          <span class="session-delete" data-delete-session="${s.id}" aria-label="Delete session">${ICONS.close}</span>
+        </button>
+      `
     })
     .join('')
 
   const current = sessions.find((s) => s.id === currentSessionId)
-  $('session-title').textContent = current?.title || 'DropNDrag'
+  $('session-title-text').textContent = current?.title || 'DropNDrag'
 }
 
 function render() {
@@ -524,6 +521,7 @@ function render() {
   $('preview-grid').className = `preview-grid ${viewMode === 'list' ? 'preview-list' : ''}`
   $('empty-state').hidden = items.length > 0
   $('clear-btn').hidden = items.length === 0
+  $('export-btn').hidden = items.length === 0
   $('view-toggle').innerHTML = viewMode === 'grid' ? ICONS.list : ICONS.grid
   renderSessions()
 }
@@ -539,6 +537,18 @@ function bindEvents() {
 
   $('clear-btn').addEventListener('click', clearAll)
   $('new-session-btn').addEventListener('click', newSession)
+
+  $('export-btn').addEventListener('click', async () => {
+    const session = sessions.find((s) => s.id === currentSessionId)
+    try {
+      await exportSessionZip(session, items)
+      toast('ZIP exported')
+    } catch {
+      toast('Export failed')
+    }
+  })
+
+  $('session-title').addEventListener('click', () => startRenameSession(currentSessionId))
 
   $('sidebar-toggle').addEventListener('click', () => {
     sidebarOpen = !sidebarOpen
@@ -576,11 +586,19 @@ function bindEvents() {
   })
 
   $('session-list').addEventListener('click', (e) => {
+    const renameBtn = e.target.closest('[data-rename-session]')
+    if (renameBtn) {
+      e.stopPropagation()
+      startRenameSession(renameBtn.dataset.renameSession)
+      return
+    }
+
     const del = e.target.closest('[data-delete-session]')
     if (del) {
       deleteSession(del.dataset.deleteSession, e)
       return
     }
+
     const btn = e.target.closest('[data-session]')
     if (btn) switchSession(btn.dataset.session)
   })
@@ -593,6 +611,21 @@ function bindEvents() {
     if (copyTextBtn) {
       const item = items.find((i) => i.id === Number(copyTextBtn.dataset.copyText))
       if (item?.content) await copyText(item.content)
+      return
+    }
+
+    const saveTextBtn = e.target.closest('[data-save-text]')
+    if (saveTextBtn) {
+      const item = items.find((i) => i.id === Number(saveTextBtn.dataset.saveText))
+      if (item?.content) {
+        const blob = new Blob([item.content], { type: item.mime || 'text/plain' })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = item.name
+        a.click()
+        URL.revokeObjectURL(url)
+      }
       return
     }
 
@@ -612,7 +645,7 @@ function bindEvents() {
     const expandBtn = e.target.closest('[data-expand]')
     if (expandBtn) {
       const item = items.find((i) => i.id === Number(expandBtn.dataset.expand))
-      if (item?.type === 'image') openLightbox(item)
+      if (item?.url && (item.type === 'image' || item.type === 'svg')) openLightbox(item)
     }
   })
 
@@ -639,7 +672,10 @@ function bindEvents() {
     if (e.key === 'Escape') {
       if (!$('lightbox').hidden) closeLightbox()
       else if (!$('restore-dialog').hidden) $('restore-dialog').hidden = true
-      else if (items.length > 0) clearAll()
+      else if (renamingSessionId) {
+        renamingSessionId = null
+        renderSessions()
+      } else if (items.length > 0) clearAll()
     }
   })
 }

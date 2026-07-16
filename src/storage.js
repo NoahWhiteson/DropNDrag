@@ -50,6 +50,8 @@ async function serializeItem(item) {
 
   if (item.content != null) {
     stored.content = item.content
+    if (item.language) stored.language = item.language
+    if (item.delimiter) stored.delimiter = item.delimiter
     return stored
   }
 
@@ -87,6 +89,8 @@ export function deserializeItem(stored) {
 
   if (stored.content != null) {
     item.content = stored.content
+    if (stored.language) item.language = stored.language
+    if (stored.delimiter) item.delimiter = stored.delimiter
     return item
   }
 
