@@ -5,58 +5,68 @@ const toastRoot = document.getElementById('toast-root')
 let itemId = 0
 const items = []
 
-const TYPE_ICONS = {
-  image: '◈',
-  video: '▶',
-  audio: '♫',
-  pdf: '◧',
-  text: '¶',
-  file: '◇',
+const TYPE_LABELS = {
+  image: 'Image',
+  video: 'Video',
+  audio: 'Audio',
+  pdf: 'PDF',
+  text: 'Text',
+  file: 'File',
 }
 
 app.innerHTML = `
-  <header class="header">
-    <div class="brand">
-      <img src="/logo.svg" alt="" class="logo" width="40" height="40" />
-      <div>
-        <h1>Drop<span class="accent">N</span>Drag</h1>
-        <p class="subtitle">Paste or drop anything — instant previews</p>
+  <header class="site-header">
+    <div class="site-header-inner">
+      <div class="brand">
+        <div class="brand-icon">
+          <img src="/logo.svg" alt="" width="20" height="20" />
+        </div>
+        <div>
+          <h1>DropNDrag</h1>
+          <p class="text-muted">Paste or drop files for instant preview</p>
+        </div>
       </div>
-    </div>
-    <div class="header-actions">
-      <span id="stats" class="stats" hidden></span>
-      <input type="file" id="file-input" multiple hidden />
-      <button type="button" id="browse-btn" class="btn btn-ghost">
-        <span class="btn-icon">⊕</span> Browse
-      </button>
-      <button type="button" id="clear-btn" class="btn btn-danger" hidden>Clear all</button>
+      <div class="site-header-actions">
+        <span id="stats" class="badge badge-secondary" hidden></span>
+        <input type="file" id="file-input" multiple hidden />
+        <button type="button" id="browse-btn" class="btn btn-outline btn-sm">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Browse
+        </button>
+        <button type="button" id="clear-btn" class="btn btn-outline btn-sm btn-destructive" hidden>Clear</button>
+      </div>
     </div>
   </header>
 
-  <div id="drop-zone" class="drop-zone">
+  <main id="drop-zone" class="drop-zone">
     <div class="drop-hint">
-      <img src="/logo.svg" alt="" class="drop-logo" width="64" height="64" />
-      <p class="drop-title">Drop files here</p>
-      <p class="drop-sub">or press <kbd>Ctrl</kbd>+<kbd>V</kbd> to paste from clipboard</p>
-      <div class="drop-tags">
-        <span>Images</span><span>Text</span><span>PDF</span><span>Video</span><span>Anything</span>
+      <div class="drop-icon-wrap">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
       </div>
+      <p class="drop-title">Drop files here</p>
+      <p class="text-muted text-sm">or press <kbd>Ctrl</kbd> + <kbd>V</kbd> to paste</p>
     </div>
     <div id="preview-grid" class="preview-grid"></div>
-  </div>
+  </main>
 
-  <footer class="footer">
-    <span><kbd>Esc</kbd> clear all</span>
+  <footer class="site-footer text-muted text-sm">
+    <span><kbd>Esc</kbd> to clear</span>
+    <span class="separator-dot"></span>
     <span>Click images to expand</span>
+    <span class="separator-dot"></span>
     <span id="item-count"></span>
   </footer>
 
-  <div id="lightbox" class="lightbox" hidden>
-    <button type="button" class="lightbox-close" aria-label="Close">×</button>
-    <img id="lightbox-img" src="" alt="" />
-    <div class="lightbox-bar">
-      <span id="lightbox-name"></span>
-      <a id="lightbox-dl" href="" download class="btn btn-ghost btn-sm">Download</a>
+  <div id="lightbox" class="dialog-overlay" hidden>
+    <div class="dialog-content">
+      <button type="button" class="btn btn-ghost btn-icon lightbox-close" aria-label="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <img id="lightbox-img" src="" alt="" class="lightbox-image" />
+      <div class="lightbox-footer">
+        <span id="lightbox-name" class="text-sm text-muted"></span>
+        <a id="lightbox-dl" href="" download class="btn btn-outline btn-sm">Download</a>
+      </div>
     </div>
   </div>
 `
@@ -285,25 +295,25 @@ function cardActions(item) {
 
   if (item.type === 'text') {
     actions.push(
-      `<button type="button" class="card-action" data-copy-text="${item.id}">Copy</button>`
+      `<button type="button" class="btn btn-ghost btn-sm" data-copy-text="${item.id}">Copy</button>`
     )
   }
 
   if (item.type === 'image') {
     actions.push(
-      `<button type="button" class="card-action" data-copy-img="${item.id}">Copy image</button>`
+      `<button type="button" class="btn btn-ghost btn-sm" data-copy-img="${item.id}">Copy</button>`
     )
     actions.push(
-      `<button type="button" class="card-action" data-expand="${item.id}">Expand</button>`
+      `<button type="button" class="btn btn-ghost btn-sm" data-expand="${item.id}">Expand</button>`
     )
   }
 
   if (item.url) {
     actions.push(
-      `<a href="${item.url}" target="_blank" rel="noopener" class="card-action">Open</a>`
+      `<a href="${item.url}" target="_blank" rel="noopener" class="btn btn-ghost btn-sm">Open</a>`
     )
     actions.push(
-      `<a href="${item.url}" download="${escapeHtml(item.name)}" class="card-action">Download</a>`
+      `<a href="${item.url}" download="${escapeHtml(item.name)}" class="btn btn-ghost btn-sm">Download</a>`
     )
   }
 
@@ -312,7 +322,7 @@ function cardActions(item) {
 }
 
 function renderCard(item) {
-  const icon = TYPE_ICONS[item.type] || '◇'
+  const label = TYPE_LABELS[item.type] || 'File'
 
   let body = ''
 
@@ -325,34 +335,32 @@ function renderCard(item) {
   } else if (item.type === 'pdf') {
     body = `<iframe src="${item.url}" class="preview-pdf" title="${escapeHtml(item.name)}"></iframe>`
   } else if (item.type === 'text') {
-    const lines = item.content.split('\n').length
-    body = `
-      <div class="text-wrap">
-        <div class="text-info">${lines} line${lines === 1 ? '' : 's'}</div>
-        <pre class="preview-text">${escapeHtml(item.content)}</pre>
-      </div>
-    `
+    body = `<pre class="preview-text">${escapeHtml(item.content)}</pre>`
   } else {
     const ext = fileExt(item.name)
     body = `
       <div class="file-placeholder">
         <span class="file-ext">${escapeHtml(ext || 'FILE')}</span>
-        <span class="file-mime">${escapeHtml(item.mime)}</span>
+        <span class="text-muted text-xs">${escapeHtml(item.mime)}</span>
       </div>
     `
   }
 
   return `
-    <article class="preview-card" data-id="${item.id}">
+    <article class="card" data-id="${item.id}">
       <div class="card-header">
-        <span class="card-type"><span class="type-icon">${icon}</span> ${item.type}</span>
-        <span class="card-time">${formatTime(item.addedAt)}</span>
-        <button type="button" class="card-remove" data-remove="${item.id}" aria-label="Remove">×</button>
+        <div class="card-header-left">
+          <span class="badge badge-outline">${label}</span>
+          <span class="text-muted text-xs">${formatTime(item.addedAt)}</span>
+        </div>
+        <button type="button" class="btn btn-ghost btn-icon btn-sm" data-remove="${item.id}" aria-label="Remove">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+        </button>
       </div>
-      <div class="card-body">${body}</div>
+      <div class="card-content">${body}</div>
       <div class="card-meta">
-        <span class="card-name" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
-        <span class="card-size">${formatBytes(item.size)}</span>
+        <span class="card-name text-sm" title="${escapeHtml(item.name)}">${escapeHtml(item.name)}</span>
+        <span class="text-muted text-xs">${formatBytes(item.size)}</span>
       </div>
       ${cardActions(item)}
     </article>
