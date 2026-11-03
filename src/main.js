@@ -13,6 +13,7 @@ import { detectFileKind, isTextKind, typeLabel } from './files.js'
 import { renderPreviewBody } from './preview.js'
 import { exportSessionZip } from './export.js'
 import { escapeHtml } from './utils.js'
+import { APP_NAME } from './brand.js'
 
 const app = document.querySelector('#app')
 const toastRoot = document.getElementById('toast-root')
@@ -45,13 +46,20 @@ function mountShell() {
   app.innerHTML = `
     <div class="shell ${sidebarOpen ? '' : 'sidebar-collapsed'}">
       <aside class="sidebar" id="sidebar">
+        <div class="sidebar-brand">
+          <img src="/logo.svg" alt="" class="sidebar-logo" width="28" height="28" />
+          <div>
+            <span class="sidebar-brand-name">${APP_NAME}</span>
+            <span class="sidebar-brand-tag text-muted text-xs">Preview desk</span>
+          </div>
+        </div>
         <div class="sidebar-top">
           <button type="button" class="sidebar-new" id="new-session-btn">
             ${ICONS.plus}
-            <span>New session</span>
+            <span>New board</span>
           </button>
         </div>
-        <div class="sidebar-label">History</div>
+        <div class="sidebar-label">Boards</div>
         <nav class="sidebar-sessions" id="session-list"></nav>
         <div class="sidebar-footer">
           <span class="text-muted text-xs">Auto-saved locally</span>
@@ -61,7 +69,7 @@ function mountShell() {
       <div class="main">
         <header class="topbar">
           <button type="button" class="icon-btn" id="sidebar-toggle" aria-label="Toggle sidebar">${ICONS.sidebar}</button>
-          <button type="button" class="topbar-title" id="session-title" title="Click to rename">${ICONS.edit}<span id="session-title-text">DropNDrag</span></button>
+          <button type="button" class="topbar-title" id="session-title" title="Click to rename"><span id="session-title-text">${APP_NAME}</span></button>
           <div class="topbar-actions">
             <div class="search-wrap">
               ${ICONS.search}
@@ -76,8 +84,11 @@ function mountShell() {
         <main class="content" id="drop-zone">
           <input type="file" id="file-input" multiple hidden />
           <div class="empty-state" id="empty-state">
-            <h2 class="greeting">Ready when you are.</h2>
-            <p class="text-muted">Drop files anywhere or paste with Ctrl+V.</p>
+            <div class="empty-icon">
+              <img src="/logo.svg" alt="" width="48" height="48" />
+            </div>
+            <h2 class="greeting">Paste it. Drop it. Preview it.</h2>
+            <p class="text-muted">Your clipboard and files show up here instantly.</p>
             <div class="quick-actions">
               <button type="button" class="quick-chip" data-action="browse">${ICONS.image} Add images</button>
               <button type="button" class="quick-chip" data-action="browse">${ICONS.file} Upload files</button>
@@ -184,7 +195,7 @@ function applyState(state) {
 function syncSessionItems() {
   const session = sessions.find((s) => s.id === currentSessionId)
   if (!session) return
-  if (items.length && session.title === 'New session') {
+  if (items.length && session.title === 'Untitled board') {
     session.title = items[0].name.length > 28 ? `${items[0].name.slice(0, 28)}…` : items[0].name
   }
   scheduleSave()
@@ -284,7 +295,7 @@ function newSession() {
     $('search-input').value = ''
     renamingSessionId = null
     render()
-    toast('New session started')
+    toast('New board created')
   })
 }
 
@@ -293,7 +304,7 @@ function deleteSession(id, event) {
   if (sessions.length === 1) {
     items.forEach(revokeItem)
     items = []
-    sessions[0].title = 'New session'
+    sessions[0].title = 'Untitled board'
     sessions[0].createdAt = new Date().toISOString()
     render()
     syncSessionItems()
@@ -512,7 +523,7 @@ function renderSessions() {
     .join('')
 
   const current = sessions.find((s) => s.id === currentSessionId)
-  $('session-title-text').textContent = current?.title || 'DropNDrag'
+  $('session-title-text').textContent = current?.title || APP_NAME
 }
 
 function render() {

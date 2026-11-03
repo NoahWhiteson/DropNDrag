@@ -1,9 +1,14 @@
-const STORAGE_KEY = 'dropndrag-v1'
+const STORAGE_KEY = 'pastehold-v1'
+const LEGACY_STORAGE_KEY = 'dropndrag-v1'
 const MAX_BLOB_SIZE = 2 * 1024 * 1024
 
 export function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    let raw = localStorage.getItem(STORAGE_KEY)
+    if (!raw) {
+      raw = localStorage.getItem(LEGACY_STORAGE_KEY)
+      if (raw) localStorage.setItem(STORAGE_KEY, raw)
+    }
     if (!raw) return null
     return JSON.parse(raw)
   } catch {
@@ -114,7 +119,7 @@ export async function buildStatePayload({ itemId, currentSessionId, sessions, it
   }
 }
 
-export function createSession(title = 'New session') {
+export function createSession(title = 'Untitled board') {
   return {
     id: crypto.randomUUID(),
     title,

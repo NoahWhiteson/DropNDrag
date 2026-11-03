@@ -1,6 +1,6 @@
-# Drop & Drag
+# Pastehold
 
-Instant paste and drag-and-drop preview for text, images, and files.
+Paste and drop files for instant previews — images, code, markdown, PDFs, and more.
 
 ## Run locally
 
@@ -11,12 +11,11 @@ npm run dev
 
 ## Deploy
 
-Configured for Vercel — connect the repo and it will run `npm run build` and serve from `dist/`.
+Configured for Vercel — `npm run build`, output `dist/`.
 
 ## Usage
 
-- **Ctrl+V** anywhere to paste images, text, or files
-- **Drag and drop** files anywhere on the page
-- **×** removes a single preview, **Clear all** or **Escape** clears everything
-
-This was made just for fun as like a hour project
+- **Ctrl+V** to paste
+- **Drag and drop** anywhere
+- **Boards** in the sidebar with local auto-save
+- **Export ZIP** from the top bar
